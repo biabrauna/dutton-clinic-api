@@ -1,43 +1,50 @@
 package br.com.clinicah.controller;
 
-import br.com.clinicah.model.Appointment;
-import br.com.clinicah.repository.AppointmentRepository;
-import org.springframework.http.ResponseEntity;
+import br.com.clinicah.dto.AppointmentRequest;
+import br.com.clinicah.dto.AppointmentResponse;
+import br.com.clinicah.service.AppointmentService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import javax.validation.Valid;
 
 @RestController
 @RequestMapping("/appointments")
 public class AppointmentController {
 
-    private final AppointmentRepository repository;
+    private final AppointmentService service;
 
-    public AppointmentController(AppointmentRepository repository) {
-        this.repository = repository;
+    public AppointmentController(AppointmentService service) {
+        this.service = service;
     }
 
     @GetMapping
-    public List<Appointment> findAll() {
-        return repository.findAll();
+    public Page<AppointmentResponse> findAll(@PageableDefault(size = 10, sort = "schedule") Pageable pageable) {
+        return service.findAll(pageable);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Appointment> findById(@PathVariable Integer id) {
-        return repository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public AppointmentResponse findById(@PathVariable Integer id) {
+        return service.findById(id);
     }
 
     @PostMapping
-    public Appointment save(@RequestBody Appointment appointment) {
-        return repository.save(appointment);
+    @ResponseStatus(HttpStatus.CREATED)
+    public AppointmentResponse create(@Valid @RequestBody AppointmentRequest request) {
+        return service.create(request);
+    }
+
+    @PutMapping("/{id}")
+    public AppointmentResponse update(@PathVariable Integer id, @Valid @RequestBody AppointmentRequest request) {
+        return service.update(id, request);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Integer id) {
-        if (!repository.existsById(id)) return ResponseEntity.notFound().build();
-        repository.deleteById(id);
-        return ResponseEntity.noContent().build();
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Integer id) {
+        service.delete(id);
     }
 }

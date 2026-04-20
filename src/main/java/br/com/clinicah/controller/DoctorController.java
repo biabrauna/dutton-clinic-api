@@ -1,54 +1,69 @@
 package br.com.clinicah.controller;
 
-import br.com.clinicah.model.Doctor;
-import br.com.clinicah.repository.DoctorRepository;
-import org.springframework.http.ResponseEntity;
+import br.com.clinicah.dto.AppointmentResponse;
+import br.com.clinicah.dto.DoctorRequest;
+import br.com.clinicah.dto.DoctorResponse;
+import br.com.clinicah.service.AppointmentService;
+import br.com.clinicah.service.DoctorService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import javax.validation.Valid;
+import javax.validation.constraints.Max;
+import javax.validation.constraints.Min;
 
 @RestController
 @RequestMapping("/doctors")
 public class DoctorController {
 
-    private final DoctorRepository repository;
+    private final DoctorService service;
+    private final AppointmentService appointmentService;
 
-    public DoctorController(DoctorRepository repository) {
-        this.repository = repository;
+    public DoctorController(DoctorService service, AppointmentService appointmentService) {
+        this.service = service;
+        this.appointmentService = appointmentService;
     }
 
     @GetMapping
-    public List<Doctor> findAll() {
-        return repository.findAll();
+    public Page<DoctorResponse> findAll(@PageableDefault(size = 10, sort = "name") Pageable pageable) {
+        return service.findAll(pageable);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Doctor> findById(@PathVariable Integer id) {
-        return repository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public DoctorResponse findById(@PathVariable Integer id) {
+        return service.findById(id);
     }
 
     @PostMapping
-    public Doctor save(@RequestBody Doctor doctor) {
-        return repository.save(doctor);
+    @ResponseStatus(HttpStatus.CREATED)
+    public DoctorResponse create(@Valid @RequestBody DoctorRequest request) {
+        return service.create(request);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Doctor> update(@PathVariable Integer id, @RequestBody Doctor data) {
-        return repository.findById(id).map(doctor -> {
-            doctor.setName(data.getName());
-            doctor.setEmail(data.getEmail());
-            doctor.setSpecialty(data.getSpecialty());
-            doctor.setCrm(data.getCrm());
-            return ResponseEntity.ok(repository.save(doctor));
-        }).orElse(ResponseEntity.notFound().build());
+    public DoctorResponse update(@PathVariable Integer id, @Valid @RequestBody DoctorRequest request) {
+        return service.update(id, request);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Integer id) {
-        if (!repository.existsById(id)) return ResponseEntity.notFound().build();
-        repository.deleteById(id);
-        return ResponseEntity.noContent().build();
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Integer id) {
+        service.delete(id);
+    }
+
+    /**
+     * Agenda do médico: consultas de um mês específico.
+     * Exemplo: GET /doctors/1/schedule?year=2026&month=5&page=0&size=20
+     */
+    @GetMapping("/{id}/schedule")
+    public Page<AppointmentResponse> getSchedule(
+            @PathVariable Integer id,
+            @RequestParam int year,
+            @RequestParam @Min(1) @Max(12) int month,
+            @PageableDefault(size = 20, sort = "scheduledAt") Pageable pageable) {
+        return appointmentService.getScheduleByMonth(id, year, month, pageable);
     }
 }

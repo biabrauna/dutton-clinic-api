@@ -1,43 +1,50 @@
 package br.com.clinicah.controller;
 
-import br.com.clinicah.model.Patient;
-import br.com.clinicah.repository.PatientRepository;
-import org.springframework.http.ResponseEntity;
+import br.com.clinicah.dto.PatientRequest;
+import br.com.clinicah.dto.PatientResponse;
+import br.com.clinicah.service.PatientService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import javax.validation.Valid;
 
 @RestController
 @RequestMapping("/patients")
 public class PatientController {
 
-    private final PatientRepository repository;
+    private final PatientService service;
 
-    public PatientController(PatientRepository repository) {
-        this.repository = repository;
+    public PatientController(PatientService service) {
+        this.service = service;
     }
 
     @GetMapping
-    public List<Patient> findAll() {
-        return repository.findAll();
+    public Page<PatientResponse> findAll(@PageableDefault(size = 10, sort = "name") Pageable pageable) {
+        return service.findAll(pageable);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Patient> findById(@PathVariable Integer id) {
-        return repository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public PatientResponse findById(@PathVariable Integer id) {
+        return service.findById(id);
     }
 
     @PostMapping
-    public Patient save(@RequestBody Patient patient) {
-        return repository.save(patient);
+    @ResponseStatus(HttpStatus.CREATED)
+    public PatientResponse create(@Valid @RequestBody PatientRequest request) {
+        return service.create(request);
+    }
+
+    @PutMapping("/{id}")
+    public PatientResponse update(@PathVariable Integer id, @Valid @RequestBody PatientRequest request) {
+        return service.update(id, request);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Integer id) {
-        if (!repository.existsById(id)) return ResponseEntity.notFound().build();
-        repository.deleteById(id);
-        return ResponseEntity.noContent().build();
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Integer id) {
+        service.delete(id);
     }
 }
