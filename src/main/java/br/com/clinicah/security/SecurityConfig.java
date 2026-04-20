@@ -32,6 +32,7 @@ public class SecurityConfig {
             .authorizeRequests()
                 // público
                 .antMatchers("/auth/**").permitAll()
+                .antMatchers("/actuator/health", "/actuator/info").permitAll()
                 .antMatchers("/swagger-ui/**", "/swagger-ui.html", "/v2/api-docs").permitAll()
 
                 // médicos: ROOT e MEDICO gerenciam; PACIENTE só lê
