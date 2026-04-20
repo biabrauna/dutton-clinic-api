@@ -11,6 +11,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Slf4j
 @Service
 public class DoctorService {
@@ -22,9 +24,17 @@ public class DoctorService {
     }
 
     @Transactional(readOnly = true)
-    public Page<DoctorResponse> findAll(Pageable pageable) {
-        log.debug("Buscando médicos - página {}, tamanho {}", pageable.getPageNumber(), pageable.getPageSize());
+    public Page<DoctorResponse> findAll(String specialty, Pageable pageable) {
+        log.debug("Buscando médicos - especialidade={}, página {}, tamanho {}", specialty, pageable.getPageNumber(), pageable.getPageSize());
+        if (specialty != null && !specialty.isBlank()) {
+            return repository.findBySpecialtyIgnoreCase(specialty, pageable).map(DoctorResponse::from);
+        }
         return repository.findAll(pageable).map(DoctorResponse::from);
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> getSpecialties() {
+        return repository.findDistinctSpecialties();
     }
 
     @Transactional(readOnly = true)

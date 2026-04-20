@@ -1,6 +1,7 @@
 package br.com.clinicah.controller;
 
 import br.com.clinicah.dto.AppointmentResponse;
+import br.com.clinicah.dto.DaySlots;
 import br.com.clinicah.dto.DoctorRequest;
 import br.com.clinicah.dto.DoctorResponse;
 import br.com.clinicah.service.AppointmentService;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import javax.validation.Valid;
 import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
+import java.util.List;
 
 @RestController
 @RequestMapping("/doctors")
@@ -27,9 +29,16 @@ public class DoctorController {
         this.appointmentService = appointmentService;
     }
 
+    @GetMapping("/specialties")
+    public List<String> getSpecialties() {
+        return service.getSpecialties();
+    }
+
     @GetMapping
-    public Page<DoctorResponse> findAll(@PageableDefault(size = 10, sort = "name") Pageable pageable) {
-        return service.findAll(pageable);
+    public Page<DoctorResponse> findAll(
+            @RequestParam(required = false) String specialty,
+            @PageableDefault(size = 10, sort = "name") Pageable pageable) {
+        return service.findAll(specialty, pageable);
     }
 
     @GetMapping("/{id}")
@@ -65,5 +74,18 @@ public class DoctorController {
             @RequestParam @Min(1) @Max(12) int month,
             @PageableDefault(size = 20, sort = "scheduledAt") Pageable pageable) {
         return appointmentService.getScheduleByMonth(id, year, month, pageable);
+    }
+
+    /**
+     * Horários disponíveis do médico em um mês.
+     * Slots de 1h, seg-sáb, 08h–19h (último slot às 19:00).
+     * Exemplo: GET /doctors/1/available-slots?year=2026&month=5
+     */
+    @GetMapping("/{id}/available-slots")
+    public List<DaySlots> getAvailableSlots(
+            @PathVariable Integer id,
+            @RequestParam int year,
+            @RequestParam @Min(1) @Max(12) int month) {
+        return appointmentService.getAvailableSlots(id, year, month);
     }
 }
