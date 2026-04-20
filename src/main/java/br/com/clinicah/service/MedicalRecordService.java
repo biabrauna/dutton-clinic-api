@@ -8,11 +8,13 @@ import br.com.clinicah.repository.AppointmentRepository;
 import br.com.clinicah.repository.DoctorRepository;
 import br.com.clinicah.repository.MedicalRecordRepository;
 import br.com.clinicah.repository.PatientRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 public class MedicalRecordService {
 
@@ -31,19 +33,23 @@ public class MedicalRecordService {
         this.appointmentRepository = appointmentRepository;
     }
 
+    @Transactional(readOnly = true)
     public Page<MedicalRecordResponse> findByPatient(Integer patientId, Pageable pageable) {
         if (!patientRepository.existsById(patientId))
             throw new ResourceNotFoundException("Paciente", patientId);
 
+        log.debug("Buscando prontuários paciente={}", patientId);
         return repository.findByPatientIdOrderByRecordDateDesc(patientId, pageable)
                 .map(MedicalRecordResponse::from);
     }
 
+    @Transactional(readOnly = true)
     public MedicalRecordResponse findById(Integer patientId, Integer recordId) {
         MedicalRecord record = repository.findById(recordId)
                 .orElseThrow(() -> new ResourceNotFoundException("Prontuário", recordId));
 
         if (!record.getPatient().getId().equals(patientId)) {
+            log.warn("Acesso negado: prontuário={} não pertence ao paciente={}", recordId, patientId);
             throw new IllegalStateException("Prontuário não pertence ao paciente informado");
         }
         return MedicalRecordResponse.from(record);
@@ -70,7 +76,6 @@ public class MedicalRecordService {
             var appointment = appointmentRepository.findById(req.getAppointmentId())
                     .orElseThrow(() -> new ResourceNotFoundException("Consulta", req.getAppointmentId()));
 
-            // garante que a consulta pertence ao mesmo médico e paciente
             if (!appointment.getDoctor().getId().equals(req.getDoctorId())) {
                 throw new IllegalStateException("A consulta não pertence ao médico informado");
             }
@@ -80,7 +85,9 @@ public class MedicalRecordService {
             record.setAppointment(appointment);
         }
 
-        return MedicalRecordResponse.from(repository.save(record));
+        MedicalRecordResponse saved = MedicalRecordResponse.from(repository.save(record));
+        log.info("Prontuário criado id={} paciente={} médico={}", saved.getId(), patientId, req.getDoctorId());
+        return saved;
     }
 
     @Transactional
@@ -91,9 +98,9 @@ public class MedicalRecordService {
         if (!record.getPatient().getId().equals(patientId)) {
             throw new IllegalStateException("Prontuário não pertence ao paciente informado");
         }
-
-        // apenas o médico que criou pode editar (ou ROOT, controlado na camada de segurança)
         if (!record.getDoctor().getId().equals(req.getDoctorId())) {
+            log.warn("Edição negada: prontuário={} criado por médico={}, tentativa de médico={}",
+                    recordId, record.getDoctor().getId(), req.getDoctorId());
             throw new IllegalStateException("Somente o médico que criou o prontuário pode editá-lo");
         }
 
@@ -104,6 +111,7 @@ public class MedicalRecordService {
         record.setTreatmentPlan(req.getTreatmentPlan());
         record.setPrescription(req.getPrescription());
 
+        log.info("Prontuário atualizado id={}", recordId);
         return MedicalRecordResponse.from(repository.save(record));
     }
 
@@ -116,5 +124,6 @@ public class MedicalRecordService {
             throw new IllegalStateException("Prontuário não pertence ao paciente informado");
         }
         repository.delete(record);
+        log.info("Prontuário removido id={}", recordId);
     }
 }
