@@ -1,10 +1,1 @@
-br\com\clinicah\controller\PacienteController.class
-br\com\clinicah\model\Paciente.class
-br\com\clinicah\repository\PacienteRepository.class
-br\com\clinicah\controller\MedicoController.class
-br\com\clinicah\model\Medico.class
-br\com\clinicah\repository\MedicoRepository.class
 br\com\clinicah\ClinicaApplication.class
-br\com\clinicah\controller\ConsultaController.class
-br\com\clinicah\model\Consulta.class
-br\com\clinicah\repository\ConsultaRepository.class
