@@ -10,13 +10,19 @@ public class CorsConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOrigins(
-                    "https://dutton-clinic-ui.lovable.app",
+                .allowedOriginPatterns(
+                    // Vercel — todos os deploys do projeto (preview + produção)
+                    "https://dutton-clinic-interface2-gilt.vercel.app",
                     "https://dutton-clinic-interface.vercel.app",
+                    "https://*.vercel.app",
+                    // Lovable
+                    "https://dutton-clinic-ui.lovable.app",
+                    // Local dev
                     "http://localhost:5173",
                     "http://localhost:3000"
                 )
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                .allowedHeaders("*");
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
+                .allowedHeaders("*")
+                .allowCredentials(false);
     }
 }
