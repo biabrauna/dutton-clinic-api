@@ -1,8 +1,162 @@
-# Clínica Dutton — API
+# Clínica Dutton — Sistema de Gestão Clínica
 
-API REST para gestão de uma clínica médica. Desenvolvida em **Java 17 + Spring Boot**, com autenticação JWT, controle de acesso por roles, prontuário eletrônico e agenda de médicos.
+Sistema fullstack para gestão de uma clínica médica, com controle de acesso por papel (RBAC), agendamento de consultas e registro de prontuários eletrônicos.
 
-> Cliente desktop disponível em [Clinica-Dutton](https://github.com/biabrauna/Clinica-Dutton)
+![CI](https://github.com/biabrauna/clinicaDutton-api/actions/workflows/ci.yml/badge.svg)
+
+---
+
+## Stack
+
+| Camada   | Tecnologia                                                      |
+|----------|-----------------------------------------------------------------|
+| Backend  | Java 17 · Spring Boot 2.7 · Spring Security · JWT (JJWT 0.11) |
+| Banco    | MySQL 8 (prod) · H2 em memória (testes) · Flyway (migrations)  |
+| Frontend | React 18 · TypeScript · Vite 5 · Tailwind CSS · shadcn/ui      |
+| Infra    | Docker · Docker Compose · GitHub Actions CI                     |
+| Docs API | SpringDoc / Swagger UI (`/swagger-ui.html`)                     |
+
+---
+
+## Arquitetura
+
+```
+clinicaDutton-api/
+├── src/
+│   ├── main/java/br/com/clinicah/
+│   │   ├── controller/     # Camada HTTP (REST controllers)
+│   │   ├── service/        # Regras de negócio
+│   │   ├── repository/     # Acesso a dados (Spring Data JPA)
+│   │   ├── model/          # Entidades JPA
+│   │   ├── dto/            # Request/Response DTOs (sem expor entidades)
+│   │   ├── security/       # JWT filter, UserDetailsService, SecurityConfig
+│   │   └── exception/      # GlobalExceptionHandler + ResourceNotFoundException
+│   └── resources/
+│       └── db/migration/   # Scripts Flyway versionados
+└── frontend/
+    └── src/
+        ├── pages/          # Páginas por role (admin / doctor / patient / auth)
+        ├── services/       # Clientes axios por domínio (doctorService, etc.)
+        ├── contexts/       # AuthContext (JWT decode, roles, IDs por sessão)
+        ├── components/     # Componentes UI (shadcn/ui) + ProtectedRoute + Layout
+        └── test/           # Vitest + Testing Library
+```
+
+### Decisões técnicas
+
+**JWT sem refresh token** — Sessão de 24h com token único armazenado no `localStorage`. Para o escopo clínico atual, a simplicidade supera o custo de rotação. Em produção escalável, adicionaria `refresh_token` persistido em banco com TTL.
+
+**Vite proxy em dev — CORS zero config** — O frontend usa `baseURL: ''` no axios, então todas as chamadas são relativas (`/auth`, `/doctors`). O Vite as encaminha para `localhost:8080`. Em produção, o nginx assume esse papel como proxy reverso — sem configuração de CORS por ambiente.
+
+**H2 + `MODE=MySQL` nos testes** — Testes de integração rodam em memória. Flyway é desabilitado no perfil `test` e o Hibernate cria o schema via `create-drop`. Resultado: testes rápidos, isolados, sem dependência de MySQL instalado.
+
+**Flyway com `baseline-on-migrate`** — Permite adotar migrations em um banco existente sem recriar o schema do zero. O Flyway registra o estado atual como baseline e só aplica versões posteriores.
+
+**`PatientService` sem e-mail** — A entidade `Patient` não tem campo de e-mail (legado da modelagem original). O frontend contorna isso com uma tela de seleção de perfil ao primeiro acesso como `PACIENTE`.
+
+---
+
+## Roles e rotas
+
+| Role      | Acesso                                                        |
+|-----------|---------------------------------------------------------------|
+| `ROOT`    | Cadastrar médicos e pacientes (`/admin`)                     |
+| `MEDICO`  | Agenda mensal, consultas, criar prontuários (`/medico`)      |
+| `PACIENTE`| Ver próprias consultas, agendar nova consulta (`/paciente`)  |
+
+---
+
+## Como rodar
+
+### Com Docker (recomendado)
+
+```bash
+docker compose up --build
+
+# Frontend:  http://localhost:5173
+# Backend:   http://localhost:8080
+# Swagger:   http://localhost:8080/swagger-ui.html
+```
+
+> O MySQL demora ~20s para ficar pronto. O backend aguarda automaticamente via `healthcheck`.
+
+### Sem Docker (desenvolvimento local)
+
+```bash
+# Terminal 1 — Backend (requer MySQL em localhost:3306 com banco "clinica")
+./mvnw spring-boot:run
+
+# Terminal 2 — Frontend
+cd frontend && npm install && npm run dev
+# Acessa http://localhost:5173
+```
+
+### Credenciais de demo (seed V2)
+
+| Role     | E-mail                       | Senha    |
+|----------|------------------------------|----------|
+| ROOT     | root@clinicadutton.com       | senha123 |
+| MEDICO   | ana.lima@clinicadutton.com   | senha123 |
+| PACIENTE | joao@email.com               | senha123 |
+
+---
+
+## Testes
+
+```bash
+# Backend — unitários (Mockito) + integração (@SpringBootTest + H2)
+./mvnw test
+
+# Frontend — componentes + serviços (Vitest + Testing Library)
+cd frontend
+npm test
+npm run coverage   # relatório HTML em coverage/
+```
+
+---
+
+## Endpoints principais
+
+| Método | Rota                             | Roles                  | Descrição                      |
+|--------|----------------------------------|------------------------|--------------------------------|
+| POST   | `/auth/login`                    | público                | Autenticação → JWT             |
+| POST   | `/auth/register`                 | público                | Cadastro de usuário            |
+| GET    | `/doctors`                       | todos autenticados     | Listar médicos (paginado)      |
+| GET    | `/doctors/specialties`           | todos autenticados     | Especialidades distintas       |
+| GET    | `/doctors/{id}/available-slots`  | todos autenticados     | Horários livres por mês        |
+| GET    | `/doctors/{id}/schedule`         | todos autenticados     | Agenda do médico por mês       |
+| POST   | `/doctors`                       | ROOT, MEDICO           | Cadastrar médico               |
+| GET    | `/patients`                      | todos autenticados     | Listar pacientes               |
+| POST   | `/patients`                      | ROOT, PACIENTE         | Cadastrar paciente             |
+| GET    | `/appointments`                  | todos autenticados     | Listar consultas               |
+| POST   | `/appointments`                  | todos autenticados     | Agendar consulta               |
+| PUT    | `/appointments/{id}`             | todos autenticados     | Atualizar status/dados         |
+| GET    | `/patients/{id}/records`         | todos autenticados     | Prontuários do paciente        |
+| POST   | `/patients/{id}/records`         | ROOT, MEDICO           | Criar prontuário               |
+
+> Documentação completa interativa em `/swagger-ui.html`.
+
+---
+
+## CI/CD — GitHub Actions
+
+Pipeline em `.github/workflows/ci.yml`, executado em push/PR para `main` e `develop`:
+
+1. **backend** — compila + `mvn test` com perfil H2
+2. **frontend** — `npm ci` + TypeScript check + `npm test` + `npm run build`
+3. **docker** — build das imagens (somente `main`)
+
+---
+
+## Variáveis de ambiente (backend)
+
+| Variável              | Padrão                         | Descrição               |
+|-----------------------|--------------------------------|-------------------------|
+| `DATABASE_URL`        | `jdbc:mysql://localhost/...`   | JDBC URL do MySQL       |
+| `DATABASE_USERNAME`   | `root`                         | Usuário do banco        |
+| `DATABASE_PASSWORD`   | `ifgoiano`                     | Senha do banco          |
+| `JWT_SECRET`          | (padrão dev — trocar em prod!) | Chave HMAC-SHA256       |
+| `PORT`                | `8080`                         | Porta do servidor       |
 
 ---
 
